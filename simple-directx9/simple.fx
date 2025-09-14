@@ -4,8 +4,8 @@ float4 g_cameraPos = float4(10.f, 5.f, 10.f, 0.0f);
 float3 g_ambient = float3(0.2f, 0.2f, 0.2f);
 
 // ピクセル・スペキュラの調整用
-float g_SpecPower = 128.0f; // 鋭さ（ハイライトの広がり）
-float g_SpecIntensity = 1.0f; // 強さ
+float g_SpecPower = 32.0f; // 鋭さ（ハイライトの広がり）
+float g_SpecIntensity = 0.5f; // 強さ
 float3 g_SpecColor = float3(1, 1, 1); // 色（必要なら変更）
 
 texture texture1;
