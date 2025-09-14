@@ -1,19 +1,22 @@
 float4x4 g_matWorldViewProj;
 float4 g_lightPos = float4(-10.f, 10.f, -10.f, 0.0f);
 float4 g_cameraPos = float4(10.f, 5.f, 10.f, 0.0f);
-float3 g_ambient = float3(0.4f, 0.4f, 0.4f);
-//float3 g_ambient = float3(0.f, 0.f, 0.f);
+float3 g_ambient = float3(0.2f, 0.2f, 0.2f);
 
-// ƒsƒNƒZƒ‹EƒXƒyƒLƒ…ƒ‰
+// ã‚¹ãƒšã‚­ãƒ¥ãƒ©
 float g_SpecPower = 32.0f;
 float g_SpecIntensity = 0.5f;
 float3 g_SpecColor = float3(1, 1, 1);
 
-// š ‰e‚ÌF‘€ìiƒfƒtƒHƒ‹ƒg‚Íu‚Ù‚ñ‚Ì­‚µÊ“xƒAƒbƒv•‚í‚¸‚©‚ÉŠ¦F‚Övj
-float g_ShadowHueDegrees = +.0f; // ‰e‚Å‰ñ‚·F‘Š(“x)B+‚Å’gFŠñ‚èA-‚ÅŠ¦FŠñ‚è
-float g_ShadowSatBoost = 2.15f; // ‰e‚ÌÊ“x”{—¦-1i0.15‚Å+15%j
-float g_ShadowStrength = 2.6f; // ‰eF‚ÌƒuƒŒƒ“ƒh‹­“xi0`1j
-float g_ShadowGamma = 5.2f; // ‰e”»’è‚ÌƒJ[ƒui>1‚Åg‚æ‚èˆÃ•”‚¾‚¯h‚ÉŒø‚­j
+// â˜… å½±ã®æŒã¡ä¸Šã’ï¼ˆã¾ãšæ˜ã‚‹ãã™ã‚‹ï¼‰
+float g_ShadowLift = 0.5f; // 0ï½1ï¼šå½±ã®æœ€å¤§æŒã¡ä¸Šã’é‡ï¼ˆ0ã§ç„¡åŠ¹ï¼‰
+float g_ShadowLiftGamma = 1.6f; // >1ã§â€œã‚ˆã‚Šæš—éƒ¨ã ã‘â€ã‚’æŒã¡ä¸Šã’
+
+// â˜… å½±ã®è‰²æ“ä½œï¼ˆæ˜ã‚‹ãã—ãŸå¾Œã«é©ç”¨ï¼‰
+float g_ShadowHueDegrees = 18.0f; // å½±ã®è‰²ç›¸å›è»¢ï¼ˆåº¦ï¼‰
+float g_ShadowSatBoost = 2.15f; // å½±ã®å½©åº¦ãƒ–ãƒ¼ã‚¹ãƒˆï¼ˆ+15%ï¼‰
+float g_ShadowStrength = 3.0f; // å½±è‰²ã®ãƒ–ãƒ¬ãƒ³ãƒ‰å¼·åº¦ 0ï½1
+float g_ShadowGamma = 1.2f; // å½±åˆ¤å®šã®ã‚«ãƒ¼ãƒ–ï¼ˆ>1ã§æ·±éƒ¨å¯„ã‚Šã«åŠ¹ãï¼‰
 
 texture texture1;
 sampler textureSampler = sampler_state
@@ -30,12 +33,11 @@ struct VSIn
     float3 nrm : NORMAL0;
     float2 uv : TEXCOORD0;
 };
-
 struct VSOut
 {
     float4 pos : POSITION;
-    float3 opos : TEXCOORD0; // ƒIƒuƒWƒFƒNƒgÀ•WiWorld=I‘z’èj
-    float3 onrm : TEXCOORD1; // ƒIƒuƒWƒFƒNƒg–@ü
+    float3 opos : TEXCOORD0;
+    float3 onrm : TEXCOORD1;
     float2 uv : TEXCOORD2;
 };
 
@@ -49,24 +51,17 @@ VSOut VertexShader1(VSIn i)
     return o;
 }
 
-// --- YIQ ‚ÅF‘Š‰ñ“]•Ê“xƒXƒP[ƒ‹i‚‘¬E•ªŠò‚È‚µj
+// RGBã®è‰²ç›¸å›è»¢ï¼†å½©åº¦å¤‰æ›´ï¼ˆYIQç©ºé–“ï¼‰
 float3 AdjustHueSat_YIQ(float3 rgb, float hueRad, float satMul)
 {
-    // RGB¨YIQ
     float Y = dot(rgb, float3(0.299, 0.587, 0.114));
     float I = dot(rgb, float3(0.596, -0.274, -0.322));
     float Q = dot(rgb, float3(0.212, -0.523, 0.311));
 
-    // Ê“xiI,Q ‚ÌU•j‚ğŠg‘åEk¬
     float2 iq = float2(I, Q) * satMul;
+    float s = sin(hueRad), c = cos(hueRad);
+    float2 iqR = float2(c * iq.x - s * iq.y, s * iq.x + c * iq.y);
 
-    // F‘Š‰ñ“]
-    float s = sin(hueRad);
-    float c = cos(hueRad);
-    float2 iqR = float2(c * iq.x - s * iq.y,
-                        s * iq.x + c * iq.y);
-
-    // YIQ¨RGB
     float3 outRGB;
     outRGB.r = Y + 0.956 * iqR.x + 0.621 * iqR.y;
     outRGB.g = Y - 0.272 * iqR.x - 0.647 * iqR.y;
@@ -81,30 +76,26 @@ float4 PixelShader1(VSOut i) : COLOR0
     float3 V = normalize(g_cameraPos.xyz - i.opos);
     float3 H = normalize(L + V);
 
-    float NdotL = saturate(dot(N, L));
-    //NdotL = (NdotL + 1.f) / 2;
+    float NdotL_raw = saturate(dot(N, L));
     float NdotH = saturate(dot(N, H));
+
+    // --- 1) å½±ã®â€œæŒã¡ä¸Šã’â€ã‚’å…ˆã«é©ç”¨ï¼ˆæš—ã„ã¨ã“ã‚ã»ã©è¶³ã—è¾¼ã‚€ï¼‰
+    //     NdotL_lifted = NdotL_raw + lift * (1 - NdotL_raw)^gamma
+    float NdotL_lifted = saturate(NdotL_raw + g_ShadowLift * pow(1.0f - NdotL_raw, g_ShadowLiftGamma));
 
     float3 albedo = tex2D(textureSampler, i.uv).rgb;
 
-    // ----------------- ‰e‚¾‚¯F‘Š/Ê“x‚ğ‘€ì -----------------
-    // t: 0=‚æ‚­“–‚½‚Á‚Ä‚¢‚é, 1=Š®‘S‚É‰eBgamma‚Å[•”Šñ‚è‚ÉŒø‚©‚¹‚é
-    float t = saturate(pow(1.0f - NdotL, g_ShadowGamma));
-
-    // ‰e—Ê‚É‰‚¶‚Äƒpƒ‰ƒ[ƒ^‚ğŠŠ‚ç‚©‚É‘‚â‚·
-    float hueRad = (g_ShadowHueDegrees * 0.01745329252f) * t; // deg¨rad
+    // --- 2) å½±åˆ¤å®šï¼ˆæŒã¡ä¸Šã’å¾Œã®NÂ·Lã§åˆ¤å®šï¼‰â†’ è‰²ç›¸/å½©åº¦ã‚’å½±ã ã‘ã«
+    float t = saturate(pow(1.0f - NdotL_lifted, g_ShadowGamma)); // 0=æ˜ã‚‹ã„, 1=å½±
+    float hueRad = (g_ShadowHueDegrees * 0.01745329252f) * t; // degâ†’rad
     float satMul = 1.0f + (g_ShadowSatBoost * t);
 
     float3 albedoShadowed = AdjustHueSat_YIQ(albedo, hueRad, satMul);
-    albedoShadowed *= 1.5f;
-
-    // ‰e‚ÌƒuƒŒƒ“ƒhi–¾‚é‚¢Š‚ÍŒ³FAˆÃ‚¢Š‚Ù‚Ç albedoShadowedj
     float3 albedoFinal = lerp(albedo, albedoShadowed, saturate(g_ShadowStrength * t));
 
-    // ----------------- ’Êí‚Ìƒ‰ƒCƒeƒBƒ“ƒO -----------------
-    float3 diffuse = albedoFinal * NdotL;
+    // --- 3) ãƒ©ã‚¤ãƒ†ã‚£ãƒ³ã‚°
+    float3 diffuse = albedoFinal * NdotL_lifted; // â† æŒã¡ä¸Šã’å¾Œã®NÂ·Lã‚’ä½¿ç”¨
     float3 ambient = albedoFinal * g_ambient;
-
     float3 spec = g_SpecColor * (pow(NdotH, g_SpecPower) * g_SpecIntensity);
 
     float3 color = ambient + diffuse + spec;
